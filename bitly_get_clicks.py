@@ -107,7 +107,14 @@ def get_html(url, hour_max=800, use_proxy=False):
             get_html(url)
             return
     else:
-        r = requests.get(url)
+        try:
+            r = requests.get(url)
+        except:
+            show_time('[Warn] {} is blocked'.format(url))
+            save_json()
+
+            sleeper.sleep(url)
+            r = requests.get(url)
 
     if r.status_code == 403:
         show_time('[Warn] {} is blocked'.format(url))
@@ -146,6 +153,11 @@ def make_permutations(length, shard_id, hour_max, shard_size=20000):
     from string import digits, ascii_uppercase, ascii_lowercase
     import itertools
     from tqdm import tqdm
+
+    exclude = [
+        ('5Ca','6My'), # bitly_3_1.json -> cpu1
+        # bitly_3_3.json -> cpu2
+    ]
 
     chars = digits + ascii_uppercase + ascii_lowercase
 
