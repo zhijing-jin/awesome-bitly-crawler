@@ -85,9 +85,12 @@ def check_env():
         import efficiency
         import tqdm
         import lxml
-    except:
+    except ImportError:
         import os
-        os.system('pip install efficiency requests tqdm lxml')
+        try:
+            os.system('pip install efficiency requests tqdm lxml')
+        except:
+            os.system('pip3 install efficiency requests tqdm lxml')
 
 
 def get_html(url, hour_max=800, use_proxy=False):
