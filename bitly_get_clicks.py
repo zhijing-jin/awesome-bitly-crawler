@@ -154,15 +154,11 @@ def make_permutations(length, shard_id, hour_max, shard_size=20000):
     import itertools
     from tqdm import tqdm
 
-    exclude = [
-        ('5Ca','6My'), # bitly_3_1.json -> cpu1
-        # bitly_3_3.json -> cpu2
-    ]
-
     chars = digits + ascii_uppercase + ascii_lowercase
 
     if length > 0:
         permutations = list(itertools.product(chars, repeat=length))
+        permutations = [i for i in permutations if i not in set(data.keys())]
     else:
         permutations = list(itertools.product(chars, repeat=1))[:1]
     total_len = len(permutations)
@@ -179,6 +175,20 @@ def save_json():
     import json
     from efficiency.log import fwrite
     fwrite(json.dumps(data, indent=4), save_to)
+
+
+def get_init_data():
+    import os
+    import json
+    from efficiency.log import fwrite
+
+    data = {}
+    if os.path.isfile(save_to):
+        with open(save_to) as f: content = f.read(); data = json.loads(content)
+        fwrite(content, save_to + '.prev')
+        print(
+            '[Info] Previous data file exists. Made a backup at ' + save_to + '.prev')
+    return data
 
 
 def main(length, shard_id, hour_max, shard_size=20000, save_size=2000):
@@ -224,9 +234,9 @@ if __name__ == '__main__':
         proxy_pool = ProxyPool()
         args.hour_max *= len(proxy_pool)
 
-    data = {}
     sleeper = Sleeper()
 
     save_to = 'bitly_{}_{}.json'.format(args.len, args.shard)
+    data = get_init_data()
 
     main(args.len, args.shard, args.hour_max)
