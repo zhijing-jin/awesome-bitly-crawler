@@ -17,11 +17,12 @@ class Sleeper:
 
 
 class ProxyPool:
-    def __init__(self):
+    def __init__(self, proxy_file=''):
         from itertools import cycle
         from time import time
 
-        self.proxies = self.get_proxies()
+        proxies = self.get_proxies(proxy_file)
+        self.proxies = self.verify_proxies(proxies)
         self.proxy_pool = cycle(self.proxies)
         self.bad_proxy_cnt = {}
         self.bad_proxy_cnt_limit = 5
@@ -51,23 +52,36 @@ class ProxyPool:
                 self.proxy_pool = cycle(self.proxies)
 
     @staticmethod
-    def get_proxies():
+    def get_proxies(proxy_file=''):
+        if proxy_file:
+            with open(proxy_file) as f:
+                proxies = [line.strip() for line in f if line.strip()]
+            return proxies
+
         import requests
         from lxml.html import fromstring
-        from tqdm import tqdm
 
         url = 'https://free-proxy-list.net/'
         response = requests.get(url)
         parser = fromstring(response.text)
         proxies = []
-        valid_proxies = set()
         for i in parser.xpath('//tbody/tr'):
             if i.xpath('.//td[7][contains(text(),"yes")]'):
                 # Grabbing IP and corresponding PORT
                 proxy = ":".join([i.xpath('.//td[1]/text()')[0],
                                   i.xpath('.//td[2]/text()')[0]])
                 proxies.append(proxy)
+        return proxies
 
+    @staticmethod
+    def verify_proxies(proxies):
+        import requests
+        from tqdm import tqdm
+
+        print('[Info] Checking proxies:', proxies)
+
+        url = 'https://free-proxy-list.net/'
+        valid_proxies = set()
         for proxy in tqdm(proxies):
             try:
                 r = requests.get(url, proxies={"http": proxy, "https": proxy})
@@ -76,6 +90,13 @@ class ProxyPool:
                     break
             except Exception:
                 pass
+        if not valid_proxies:
+            print('[Info] No valid proxies. Exiting program...')
+            import sys
+            sys.exit()
+
+        print('[Info] Using proxies:', valid_proxies)
+
         return valid_proxies
 
 
@@ -217,6 +238,8 @@ if __name__ == '__main__':
                         help='number of downloads permited per hour')
     parser.add_argument('-use_proxy', action='store_true',
                         help='whether to use proxy when scraping')
+    parser.add_argument('-proxy_file', default='', type=str,
+                        help='what file to look up the proxy addresses')
     args = parser.parse_args()
 
     check_env()
@@ -224,15 +247,13 @@ if __name__ == '__main__':
     if args.use_proxy:
         import signal
 
-
         def handler(signum, frame):
             raise Exception("end of time")
-
 
         signal.signal(signal.SIGALRM, handler)
         signal.alarm(1)
 
-        proxy_pool = ProxyPool()
+        proxy_pool = ProxyPool(args.proxy_file)
         args.hour_max *= len(proxy_pool)
 
     sleeper = Sleeper()
