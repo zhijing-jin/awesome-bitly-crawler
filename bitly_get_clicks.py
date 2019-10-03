@@ -117,7 +117,9 @@ def get_html(url, hour_max=800, use_proxy=False):
     import requests
     from efficiency.log import show_time
 
-    time.sleep(60 * 60 / hour_max)
+    interval = 60 * 60 / hour_max
+    if use_proxy: interval /= len(proxy_pool)
+    time.sleep(interval)
 
     if use_proxy:
         proxy = next(proxy_pool)
