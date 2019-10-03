@@ -13,7 +13,7 @@ class Sleeper:
             self.url = url
             self.block_times = 1
         time.sleep(self.block_secs * self.block_times)
-        self.block_secs *= 1.3
+        self.block_secs *= 1.5
 
 
 class ProxyPool:
