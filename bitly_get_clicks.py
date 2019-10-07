@@ -177,36 +177,27 @@ def get_content(bit_id='2pa6pME'):
             pdb.set_trace()
 
 
-def make_permutations(length, shard_id, shard_size=20000, random=True):
+def get_permutations(shard_id, length=7, shard_size=None):
     from string import digits, ascii_uppercase, ascii_lowercase
-    import itertools
     from tqdm import tqdm
-    from uuid import uuid4
 
     chars = digits + ascii_uppercase + ascii_lowercase
+    uid_file = './data/bitid_{:03d}.txt'.format(shard_id)
 
-    if random:
-        permutations = [uuid4().hex[:length] for _ in range(shard_size)]
-        permutations = set(permutations) - set(data.keys())
-        total_len = len(permutations)
-    elif length > 0:
-        if args.use_proxy: signal.alarm(100)
-        permutations = list(itertools.product(chars, repeat=length))
-        total_len = len(permutations)
-        permutations = permutations[
-                       shard_size * shard_id:shard_size * (shard_id + 1)]
-        permutations = [''.join(i) for i in permutations]
-        permutations = [i for i in permutations if i not in set(data.keys())]
-        if args.use_proxy: signal.alarm(interval + 500)
-    else:
-        permutations = list(itertools.product(chars, repeat=1))[:1]
-        total_len = len(permutations)
+    with open(uid_file) as f:
+        uids = f.read().strip()
+        uids = uids.split()[:shard_size]
+        uids = [uid[:length] for uid in uids]
+
+    total_len = len(uids)
     print('[Info] Total length of this permutations:', total_len)
     print('[Info] Will be saved to:', save_to)
 
-    tbar = tqdm(permutations)
+    uids = list(set(uids) - set(data.keys()))
+
+    tbar = tqdm(uids)
     tbar.set_description(
-        '{}, {}, every {}'.format(save_to, total_len, interval))
+        '{}, {}, {}sec'.format(save_to, total_len, interval))
     return tbar
 
 
@@ -230,15 +221,14 @@ def get_init_data():
     return data
 
 
-def main(length, shard_id, shard_size=20000, save_size=2000):
-    tbar = make_permutations(length, shard_id, shard_size=shard_size)
+def main(shard_id, length=7, save_size=2000, shard_size=20000):
+    tbar = get_permutations(shard_id, length=length, shard_size=shard_size)
 
     for bit_id in tbar:
         content = get_content(bit_id)
-        if content is not None:
-            data[bit_id] = content
-            if len(data) % save_size == 0:
-                save_json()
+        data[bit_id] = content
+        if len(data) % save_size == 0:
+            save_json()
     save_json()
 
 
@@ -246,11 +236,11 @@ if __name__ == '__main__':
     import argparse
 
     parser = argparse.ArgumentParser('Args for Web Crawler')
-    parser.add_argument('-len', default=1, type=int,
+    parser.add_argument('-len', default=7, type=int,
                         help='the length of bit id in the urls to crawl')
     parser.add_argument('-shard', default=0, type=int,
                         help='the length of bit id in the urls to crawl')
-    parser.add_argument('-shard_size', default=20000, type=int,
+    parser.add_argument('-shard_size', default=None, type=int,
                         help='number of urls to crawl')
     parser.add_argument('-hour_max', default=800, type=int,
                         help='number of downloads permited per hour')
@@ -266,8 +256,7 @@ if __name__ == '__main__':
         import signal
 
 
-        def handler(signum, frame):
-            raise Exception("end of time")
+        def handler(signum, frame): raise Exception("end of time")
 
 
         signal.signal(signal.SIGALRM, handler)
@@ -278,7 +267,7 @@ if __name__ == '__main__':
     sleeper = Sleeper()
 
     interval = int(60 * 60 / args.hour_max)
-    save_to = 'bitly_{}_{:03d}.json'.format(args.len, args.shard)
+    save_to = 'ctr_{:03d}.json'.format(args.shard)
     data = get_init_data()
 
-    main(args.len, args.shard, shard_size=args.shard_size)
+    main(args.shard, length=args.len, shard_size=args.shard_size)
