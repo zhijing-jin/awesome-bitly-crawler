@@ -112,13 +112,11 @@ def check_env():
         os.system('pip3 install efficiency requests tqdm lxml')
 
 
-def get_html(url, hour_max=800, use_proxy=False):
+def get_html(url, use_proxy=False):
     import time
     import requests
     from efficiency.log import show_time
 
-    interval = 60 * 60 / hour_max
-    if use_proxy: interval /= len(proxy_pool)
     time.sleep(interval)
 
     if use_proxy:
@@ -151,11 +149,11 @@ def get_html(url, hour_max=800, use_proxy=False):
             return r.text
 
 
-def get_content(bit_id='OpjqIE', hour_max=800):
+def get_content(bit_id='2pa6pME'):
     import json
 
     url = 'https://bitly.com/{}+'.format(bit_id)
-    html = get_html(url, hour_max=hour_max)
+    html = get_html(url)
     if html:
         try:
             parts = html.split('window.InfoPlus.start(\n', 1)[1]
@@ -167,31 +165,48 @@ def get_content(bit_id='OpjqIE', hour_max=800):
                         import pdb
                         pdb.set_trace()
             parts[0].update(parts[1])
-            return parts[0]
+            dic = parts[0]
+            keys = ['title', 'long_url', 'global_clicks', 'user_clicks',
+                    'global_created_at', 'created_at',
+                    'hash', 'global_hash', 'user_hash', 'enterprise_user',
+                    'confidential_metrics_visible', 'confidential_metrics', ]
+            dic = {k: dic[k] for k in keys}
+            return dic
         except:
             import pdb
             pdb.set_trace()
 
 
-def make_permutations(length, shard_id, hour_max, shard_size=20000):
+def make_permutations(length, shard_id, shard_size=20000, random=True):
     from string import digits, ascii_uppercase, ascii_lowercase
     import itertools
     from tqdm import tqdm
+    from uuid import uuid4
 
     chars = digits + ascii_uppercase + ascii_lowercase
 
-    if length > 0:
+    if random:
+        permutations = [uuid4().hex[:length] for _ in range(shard_size)]
+        permutations = set(permutations) - set(data.keys())
+        total_len = len(permutations)
+    elif length > 0:
+        if args.use_proxy: signal.alarm(100)
         permutations = list(itertools.product(chars, repeat=length))
+        total_len = len(permutations)
+        permutations = permutations[
+                       shard_size * shard_id:shard_size * (shard_id + 1)]
+        permutations = [''.join(i) for i in permutations]
         permutations = [i for i in permutations if i not in set(data.keys())]
+        if args.use_proxy: signal.alarm(interval + 500)
     else:
         permutations = list(itertools.product(chars, repeat=1))[:1]
-    total_len = len(permutations)
+        total_len = len(permutations)
     print('[Info] Total length of this permutations:', total_len)
     print('[Info] Will be saved to:', save_to)
-    permutations = permutations[
-                   shard_size * shard_id:shard_size * (shard_id + 1)]
+
     tbar = tqdm(permutations)
-    tbar.set_description('{}, {}, {}/hr'.format(save_to, total_len, hour_max))
+    tbar.set_description(
+        '{}, {}, every {}'.format(save_to, total_len, interval))
     return tbar
 
 
@@ -215,12 +230,11 @@ def get_init_data():
     return data
 
 
-def main(length, shard_id, hour_max, shard_size=20000, save_size=2000):
-    tbar = make_permutations(length, shard_id, hour_max, shard_size=shard_size)
+def main(length, shard_id, shard_size=20000, save_size=2000):
+    tbar = make_permutations(length, shard_id, shard_size=shard_size)
 
-    for item in tbar:
-        bit_id = ''.join(item)
-        content = get_content(bit_id, hour_max=hour_max)
+    for bit_id in tbar:
+        content = get_content(bit_id)
         if content is not None:
             data[bit_id] = content
             if len(data) % save_size == 0:
@@ -236,6 +250,8 @@ if __name__ == '__main__':
                         help='the length of bit id in the urls to crawl')
     parser.add_argument('-shard', default=0, type=int,
                         help='the length of bit id in the urls to crawl')
+    parser.add_argument('-shard_size', default=20000, type=int,
+                        help='number of urls to crawl')
     parser.add_argument('-hour_max', default=800, type=int,
                         help='number of downloads permited per hour')
     parser.add_argument('-use_proxy', action='store_true',
@@ -249,18 +265,20 @@ if __name__ == '__main__':
     if args.use_proxy:
         import signal
 
+
         def handler(signum, frame):
             raise Exception("end of time")
 
+
         signal.signal(signal.SIGALRM, handler)
-        signal.alarm(1)
 
         proxy_pool = ProxyPool(args.proxy_file)
         args.hour_max *= len(proxy_pool)
 
     sleeper = Sleeper()
 
-    save_to = 'bitly_{}_{}.json'.format(args.len, args.shard)
+    interval = int(60 * 60 / args.hour_max)
+    save_to = 'bitly_{}_{:03d}.json'.format(args.len, args.shard)
     data = get_init_data()
 
-    main(args.len, args.shard, args.hour_max)
+    main(args.len, args.shard, shard_size=args.shard_size)
