@@ -183,7 +183,9 @@ fabric.properties
 
 # ignore large data files
 api_example.py
+setup.sh
 *json
+
 
 
 
